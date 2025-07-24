@@ -11,22 +11,29 @@ app.use(express.json());
 
 const server = http.createServer(app);
 
+// ✅ Setup Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*", // Change to frontend domain in production
-    methods: ["GET", "POST"]
+    origin: "*", // Replace with your frontend domain in production
+    methods: ["GET", "POST"],
   },
 });
 
 // ✅ MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => {
-  console.log("✅ MongoDB connected");
-}).catch((err) => {
-  console.error("❌ MongoDB connection error:", err.message);
-});
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err.message));
+
+// ✅ Import Routes
+const authRoutes = require("./routes/auth");
+const userRoutes = require("./routes/user");
+
+// ✅ Use Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+
+// ✅ Models
+const Message = require("./models/Message");
 
 const users = {}; // { socket.id: { username, room } }
 
@@ -43,21 +50,39 @@ io.on("connection", (socket) => {
     socket.to(room).emit("chatMessage", {
       sender: "System",
       text: `${username} joined the room`,
-    });
-
-    io.to(room).emit("onlineUsers", getUsersInRoom(room));
-  });
-
-  socket.on("chatMessage", ({ message, room, sender }) => {
-    if (!message || !room || !sender) return;
-
-    io.to(room).emit("chatMessage", {
-      text: message,
-      sender,
       timestamp: new Date(),
     });
 
-    // 💾 Save message to MongoDB (implement Message model if needed)
+    io.to(room).emit("onlineUsers", getUsersInRoom(room));
+
+    // ✅ Send Chat History (on join)
+    Message.find({ room })
+      .sort({ timestamp: 1 })
+      .limit(50)
+      .then((history) => {
+        socket.emit("chatHistory", history);
+      });
+  });
+
+  socket.on("chatMessage", async ({ message, room, sender }) => {
+    if (!message || !room || !sender) return;
+
+    const msgObj = {
+      room,
+      sender,
+      text: message,
+      timestamp: new Date(),
+    };
+
+    // ✅ Emit to all in room
+    io.to(room).emit("chatMessage", msgObj);
+
+    // ✅ Save to DB
+    try {
+      await Message.create(msgObj);
+    } catch (err) {
+      console.error("❌ Error saving message:", err.message);
+    }
   });
 
   socket.on("typing", ({ room, username }) => {
@@ -72,6 +97,7 @@ io.on("connection", (socket) => {
       socket.to(user.room).emit("chatMessage", {
         sender: "System",
         text: `${user.username} left the room`,
+        timestamp: new Date(),
       });
 
       delete users[socket.id];

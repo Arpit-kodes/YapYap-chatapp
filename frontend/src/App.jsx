@@ -8,6 +8,7 @@ import TypingIndicator from "./components/TypingIndicator";
 function App() {
   const [room, setRoom] = useState("general");
   const [username, setUsername] = useState("");
+  const [inputName, setInputName] = useState("");
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUser, setTypingUser] = useState(null);
@@ -48,17 +49,28 @@ function App() {
     socket.emit("typing", { room, username });
   };
 
+  const handleJoin = () => {
+    const trimmed = inputName.trim();
+    if (!trimmed) return alert("Please enter a name.");
+    setUsername(trimmed);
+  };
+
   if (!username) {
     return (
       <div style={{ padding: 20 }}>
-        <h2>Enter Username to Join Chat</h2>
+        <h2>Enter your name to join as Guest</h2>
         <input
           type="text"
-          placeholder="Your Name"
+          value={inputName}
+          onChange={(e) => setInputName(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") setUsername(e.target.value.trim());
+            if (e.key === "Enter") handleJoin();
           }}
+          placeholder="Your Name"
         />
+        <button onClick={handleJoin} style={{ marginLeft: "10px" }}>
+          Join
+        </button>
       </div>
     );
   }
@@ -68,8 +80,11 @@ function App() {
       <h2>Room: {room}</h2>
       <OnlineUsersList users={onlineUsers} />
       <ChatRoom messages={messages} />
-      {typingUser && <TypingIndicator user={typingUser} />}
-      <MessageInput onSend={handleSendMessage} onTyping={handleTyping} />
+      {typingUser && <TypingIndicator typingUser={typingUser} />}
+      <MessageInput
+        onSendMessage={handleSendMessage}
+        onTyping={handleTyping}
+      />
     </div>
   );
 }

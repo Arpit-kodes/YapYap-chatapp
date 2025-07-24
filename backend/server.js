@@ -14,13 +14,14 @@ const server = http.createServer(app);
 // ✅ Setup Socket.io
 const io = new Server(server, {
   cors: {
-    origin: "*", // Replace with your frontend domain in production
+    origin: "*", // Replace with frontend URL in production
     methods: ["GET", "POST"],
   },
 });
 
 // ✅ MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
 
@@ -32,36 +33,56 @@ const userRoutes = require("./routes/user");
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 
-// ✅ Models
+// ✅ Import Message model
 const Message = require("./models/Message");
 
 const users = {}; // { socket.id: { username, room } }
+
+// ✅ Helper: Get usernames in room
+function getUsersInRoom(room) {
+  return Object.values(users)
+    .filter((user) => user.room === room)
+    .map((user) => user.username);
+}
 
 // ✅ Socket.io Events
 io.on("connection", (socket) => {
   console.log("🟢 New user connected:", socket.id);
 
-  socket.on("joinRoom", ({ username, room }) => {
+  socket.on("joinRoom", async ({ username, room }) => {
     if (!username || !room) return;
 
+    // ✅ Leave previous rooms except personal room
+    const joinedRooms = Array.from(socket.rooms);
+    for (const joinedRoom of joinedRooms) {
+      if (joinedRoom !== socket.id) {
+        socket.leave(joinedRoom);
+      }
+    }
+
+    // ✅ Join new room
     socket.join(room);
     users[socket.id] = { username, room };
 
+    // ✅ Notify others in room
     socket.to(room).emit("chatMessage", {
       sender: "System",
       text: `${username} joined the room`,
       timestamp: new Date(),
     });
 
+    // ✅ Send updated user list
     io.to(room).emit("onlineUsers", getUsersInRoom(room));
 
-    // ✅ Send Chat History (on join)
-    Message.find({ room })
-      .sort({ timestamp: 1 })
-      .limit(50)
-      .then((history) => {
-        socket.emit("chatHistory", history);
-      });
+    // ✅ Send last 50 messages from MongoDB
+    try {
+      const history = await Message.find({ room })
+        .sort({ timestamp: 1 })
+        .limit(50);
+      socket.emit("chatHistory", history);
+    } catch (err) {
+      console.error("❌ Error fetching chat history:", err.message);
+    }
   });
 
   socket.on("chatMessage", async ({ message, room, sender }) => {
@@ -74,10 +95,10 @@ io.on("connection", (socket) => {
       timestamp: new Date(),
     };
 
-    // ✅ Emit to all in room
+    // ✅ Emit to all users in room
     io.to(room).emit("chatMessage", msgObj);
 
-    // ✅ Save to DB
+    // ✅ Save to MongoDB
     try {
       await Message.create(msgObj);
     } catch (err) {
@@ -107,13 +128,6 @@ io.on("connection", (socket) => {
     console.log("🔴 User disconnected:", socket.id);
   });
 });
-
-// ✅ Helper: Get all usernames in room
-function getUsersInRoom(room) {
-  return Object.values(users)
-    .filter((user) => user.room === room)
-    .map((user) => user.username);
-}
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;

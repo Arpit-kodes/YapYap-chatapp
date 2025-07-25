@@ -1,5 +1,6 @@
-// src/socket.js
 import { io } from "socket.io-client";
 
-// Backend runs on port 5000
-export const socket = io("http://localhost:5000");
+// Use environment variable or fallback to localhost for development
+const backendURL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+
+export const socket = io(backendURL);

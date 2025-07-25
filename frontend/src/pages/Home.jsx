@@ -12,7 +12,8 @@ const Home = () => {
 
   const navigate = useNavigate();
 
-  // ✅ Redirect guest user back to chat if still in sessionStorage
+  const API = import.meta.env.VITE_API_URL;
+
   useEffect(() => {
     const storedUser =
       JSON.parse(sessionStorage.getItem("user")) ||
@@ -35,21 +36,21 @@ const Home = () => {
       if (isGuest) {
         const guestName = username.trim() || `Guest${Math.floor(Math.random() * 10000)}`;
         userData = { username: guestName, room: selectedRoom, guest: true };
-        sessionStorage.setItem("user", JSON.stringify(userData)); // ✅ guest: sessionStorage
+        sessionStorage.setItem("user", JSON.stringify(userData));
       } else if (isSignup) {
-        const res = await axios.post("http://localhost:5000/api/auth/signup", {
+        const res = await axios.post(`${API}/api/auth/signup`, {
           username,
           password,
         });
         userData = { ...res.data.user, room: selectedRoom, guest: false };
-        localStorage.setItem("user", JSON.stringify(userData)); // ✅ login: localStorage
+        localStorage.setItem("user", JSON.stringify(userData));
       } else {
-        const res = await axios.post("http://localhost:5000/api/auth/login", {
+        const res = await axios.post(`${API}/api/auth/login`, {
           username,
           password,
         });
         userData = { ...res.data.user, room: selectedRoom, guest: false };
-        localStorage.setItem("user", JSON.stringify(userData)); // ✅ login: localStorage
+        localStorage.setItem("user", JSON.stringify(userData));
       }
 
       navigate("/chat");

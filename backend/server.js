@@ -6,18 +6,11 @@ const { Server } = require("socket.io");
 require("dotenv").config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-
 const server = http.createServer(app);
 
-// ✅ Setup Socket.io
-const io = new Server(server, {
-  cors: {
-    origin: "*", // Replace with frontend URL in production
-    methods: ["GET", "POST"],
-  },
-});
+// ✅ Middleware
+app.use(cors());
+app.use(express.json());
 
 // ✅ MongoDB Connection
 mongoose
@@ -25,112 +18,116 @@ mongoose
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
 
-// ✅ Import Routes
+// ✅ Routes
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
-
-// ✅ Use Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 
-// ✅ Import Message model
+// ✅ Models
 const Message = require("./models/Message");
 
-const users = {}; // { socket.id: { username, room } }
+// ✅ Socket.IO Setup
+const io = new Server(server, {
+  cors: {
+    origin: "*", // 🔒 Replace with frontend URL in production
+    methods: ["GET", "POST"],
+  },
+});
 
-// ✅ Helper: Get usernames in room
-function getUsersInRoom(room) {
-  return Object.values(users)
+// ✅ Active Users: socket.id -> { username, room }
+const users = {};
+
+// ✅ Helper: Get all users in a room
+const getUsersInRoom = (room) =>
+  Object.values(users)
     .filter((user) => user.room === room)
     .map((user) => user.username);
-}
 
-// ✅ Socket.io Events
+// ✅ Socket.IO Events
 io.on("connection", (socket) => {
-  console.log("🟢 New user connected:", socket.id);
+  console.log("🟢 New socket connected:", socket.id);
 
+  // 🔄 Join Room
   socket.on("joinRoom", async ({ username, room }) => {
     if (!username || !room) return;
 
-    // ✅ Leave previous rooms except personal room
-    const joinedRooms = Array.from(socket.rooms);
-    for (const joinedRoom of joinedRooms) {
-      if (joinedRoom !== socket.id) {
-        socket.leave(joinedRoom);
-      }
+    // ✅ Remove socket from previous rooms (except personal)
+    for (const r of socket.rooms) {
+      if (r !== socket.id) socket.leave(r);
     }
 
-    // ✅ Join new room
+    // ✅ Track and join new room
     socket.join(room);
     users[socket.id] = { username, room };
 
-    // ✅ Notify others in room
+    // ✅ Notify room
     socket.to(room).emit("chatMessage", {
       sender: "System",
       text: `${username} joined the room`,
       timestamp: new Date(),
     });
 
-    // ✅ Send updated user list
+    // ✅ Update online users
     io.to(room).emit("onlineUsers", getUsersInRoom(room));
 
-    // ✅ Send last 50 messages from MongoDB
+    // ✅ Send chat history
     try {
-      const history = await Message.find({ room })
-        .sort({ timestamp: 1 })
-        .limit(50);
+      const history = await Message.find({ room }).sort({ timestamp: 1 }).limit(50);
       socket.emit("chatHistory", history);
     } catch (err) {
-      console.error("❌ Error fetching chat history:", err.message);
+      console.error("❌ Chat history error:", err.message);
     }
   });
 
+  // 💬 Receive message
   socket.on("chatMessage", async ({ message, room, sender }) => {
     if (!message || !room || !sender) return;
 
-    const msgObj = {
-      room,
+    const msg = {
       sender,
+      room,
       text: message,
       timestamp: new Date(),
     };
 
-    // ✅ Emit to all users in room
-    io.to(room).emit("chatMessage", msgObj);
-
-    // ✅ Save to MongoDB
     try {
-      await Message.create(msgObj);
+      await Message.create(msg); // ✅ Save
+      io.to(room).emit("chatMessage", msg); // ✅ Broadcast to room only
     } catch (err) {
-      console.error("❌ Error saving message:", err.message);
+      console.error("❌ Message save error:", err.message);
     }
   });
 
+  // ✍️ Typing indicator
   socket.on("typing", ({ room, username }) => {
     if (room && username) {
       socket.to(room).emit("typing", username);
     }
   });
 
+  // 🔌 Disconnect
   socket.on("disconnect", () => {
     const user = users[socket.id];
     if (user) {
-      socket.to(user.room).emit("chatMessage", {
+      const { room, username } = user;
+
+      socket.to(room).emit("chatMessage", {
         sender: "System",
-        text: `${user.username} left the room`,
+        text: `${username} left the room`,
         timestamp: new Date(),
       });
 
       delete users[socket.id];
-      io.to(user.room).emit("onlineUsers", getUsersInRoom(user.room));
+      io.to(room).emit("onlineUsers", getUsersInRoom(room));
     }
 
-    console.log("🔴 User disconnected:", socket.id);
+    console.log("🔴 Socket disconnected:", socket.id);
   });
 });
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });

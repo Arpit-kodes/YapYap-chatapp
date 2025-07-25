@@ -48,29 +48,38 @@ const Home = () => {
   };
 
   return (
-    <div style={{ padding: 30, maxWidth: 400, margin: "0 auto" }}>
-      <h2>💬 Welcome to YapYap Chat</h2>
+    <div
+      style={{
+        backgroundColor: "#0b1f3a",
+        color: "#f0f4f8",
+        padding: 30,
+        maxWidth: 450,
+        margin: "40px auto",
+        borderRadius: 12,
+        boxShadow: "0 8px 20px rgba(0,0,0,0.4)",
+        fontFamily: "Segoe UI, sans-serif",
+      }}
+    >
+      <h2 style={{ textAlign: "center", marginBottom: 20 }}>💬 YapYap Chat</h2>
 
-      <div style={{ marginTop: 10 }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={isGuest}
-            onChange={() => {
-              setIsGuest(!isGuest);
-              setPassword("");
-            }}
-          />{" "}
-          Continue as Guest
-        </label>
-      </div>
+      <label style={{ display: "block", marginBottom: 10 }}>
+        <input
+          type="checkbox"
+          checked={isGuest}
+          onChange={() => {
+            setIsGuest(!isGuest);
+            setPassword("");
+          }}
+        />{" "}
+        <span style={{ marginLeft: 6 }}>Continue as Guest</span>
+      </label>
 
       <input
         type="text"
         placeholder="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
-        style={{ width: "100%", padding: 8, marginTop: 10 }}
+        style={inputStyle}
       />
 
       {!isGuest && (
@@ -79,7 +88,7 @@ const Home = () => {
           placeholder={isSignup ? "Create password" : "Password"}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", padding: 8, marginTop: 10 }}
+          style={inputStyle}
         />
       )}
 
@@ -87,35 +96,24 @@ const Home = () => {
 
       {selectedRoom && (
         <div style={{ marginTop: 10 }}>
-          ✅ <strong>Selected Room:</strong> <span>{selectedRoom}</span>
+          ✅ <strong>Selected Room:</strong>{" "}
+          <span style={{ color: "#00d8ff" }}>{selectedRoom}</span>
         </div>
       )}
 
-      <button
-        onClick={handleSubmit}
-        style={{
-          marginTop: 20,
-          padding: "10px 20px",
-          width: "100%",
-          backgroundColor: "#4CAF50",
-          color: "#fff",
-          border: "none",
-          borderRadius: 5,
-          cursor: "pointer",
-        }}
-      >
+      <button onClick={handleSubmit} style={buttonStyle}>
         {isGuest ? "Enter as Guest" : isSignup ? "Sign Up" : "Login"}
       </button>
 
       {!isGuest && (
-        <p style={{ marginTop: 15 }}>
+        <p style={{ marginTop: 20, textAlign: "center" }}>
           {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
           <button
             onClick={() => setIsSignup(!isSignup)}
             style={{
               background: "none",
               border: "none",
-              color: "#007bff",
+              color: "#00d8ff",
               cursor: "pointer",
               textDecoration: "underline",
               padding: 0,
@@ -127,6 +125,30 @@ const Home = () => {
       )}
     </div>
   );
+};
+
+// 🔵 Styles
+const inputStyle = {
+  width: "100%",
+  padding: "10px",
+  marginTop: 10,
+  borderRadius: 6,
+  border: "1px solid #2a3f5f",
+  backgroundColor: "#162c4d",
+  color: "#fff",
+};
+
+const buttonStyle = {
+  marginTop: 20,
+  padding: "12px",
+  width: "100%",
+  backgroundColor: "#0077ff",
+  color: "#fff",
+  border: "none",
+  borderRadius: 6,
+  fontWeight: "bold",
+  cursor: "pointer",
+  transition: "0.2s ease",
 };
 
 export default Home;

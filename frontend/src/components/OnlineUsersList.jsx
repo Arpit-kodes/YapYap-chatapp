@@ -1,13 +1,24 @@
-// src/components/OnlineUsersList.jsx
 import React from "react";
 
 const OnlineUsersList = ({ users }) => {
   return (
-    <div className="p-2 bg-gray-100 border rounded shadow-md mb-4">
-      <h3 className="text-lg font-semibold mb-2">Online Users</h3>
-      <ul className="space-y-1">
+    <div
+      style={{
+        padding: "10px",
+        backgroundColor: "#162d4d",
+        border: "1px solid #2c3e50",
+        borderRadius: "8px",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
+        marginBottom: "20px",
+        textAlign: "left",
+      }}
+    >
+      <h3 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "10px", color: "#f0f4f8" }}>
+        👥 Online Users
+      </h3>
+      <ul style={{ listStyle: "none", paddingLeft: "10px", margin: 0 }}>
         {users.map((user, index) => (
-          <li key={index} className="text-green-600">
+          <li key={index} style={{ color: "#00ff88", marginBottom: "4px" }}>
             • {user}
           </li>
         ))}

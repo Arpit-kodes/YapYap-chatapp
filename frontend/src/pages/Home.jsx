@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import RoomList from "../components/RoomList";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -12,35 +12,46 @@ const Home = () => {
 
   const navigate = useNavigate();
 
-  const handleSubmit = async () => {
-    if (!username || !selectedRoom) {
-      return alert("Please enter name and select a room.");
-    }
+  // ✅ Redirect guest user back to chat if still in sessionStorage
+  useEffect(() => {
+    const storedUser =
+      JSON.parse(sessionStorage.getItem("user")) ||
+      JSON.parse(localStorage.getItem("user"));
 
-    if (!isGuest && !password) {
-      return alert("Please enter a password for login/signup.");
+    if (storedUser?.room && storedUser?.username) {
+      navigate("/chat");
+    }
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!selectedRoom) return alert("Please select a room.");
+    if (!isGuest && (!username || !password)) {
+      return alert("Please fill in all fields.");
     }
 
     try {
       let userData;
 
       if (isGuest) {
-        userData = { username, room: selectedRoom, guest: true };
+        const guestName = username.trim() || `Guest${Math.floor(Math.random() * 10000)}`;
+        userData = { username: guestName, room: selectedRoom, guest: true };
+        sessionStorage.setItem("user", JSON.stringify(userData)); // ✅ guest: sessionStorage
       } else if (isSignup) {
         const res = await axios.post("http://localhost:5000/api/auth/signup", {
           username,
           password,
         });
         userData = { ...res.data.user, room: selectedRoom, guest: false };
+        localStorage.setItem("user", JSON.stringify(userData)); // ✅ login: localStorage
       } else {
         const res = await axios.post("http://localhost:5000/api/auth/login", {
           username,
           password,
         });
         userData = { ...res.data.user, room: selectedRoom, guest: false };
+        localStorage.setItem("user", JSON.stringify(userData)); // ✅ login: localStorage
       }
 
-      localStorage.setItem("user", JSON.stringify(userData));
       navigate("/chat");
     } catch (err) {
       alert("❌ Error: " + (err.response?.data?.message || "Something went wrong"));
@@ -76,7 +87,7 @@ const Home = () => {
 
       <input
         type="text"
-        placeholder="Username"
+        placeholder={isGuest ? "Optional: Guest Name" : "Username"}
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         style={inputStyle}
@@ -127,7 +138,6 @@ const Home = () => {
   );
 };
 
-// 🔵 Styles
 const inputStyle = {
   width: "100%",
   padding: "10px",

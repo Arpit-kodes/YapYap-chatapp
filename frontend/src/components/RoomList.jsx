@@ -1,16 +1,29 @@
-import React, { useState } from "react";
-
-const defaultRooms = ["general", "tech", "gaming", "music"];
+import React, { useEffect, useState } from "react";
+import { socket } from "../socket"; // make sure this is the shared socket instance
 
 function RoomList({ onSelectRoom }) {
   const [room, setRoom] = useState("");
-  const [customRooms, setCustomRooms] = useState([...defaultRooms]);
+  const [rooms, setRooms] = useState([]);
   const [activeRoom, setActiveRoom] = useState("");
+
+  useEffect(() => {
+    // 🔁 Listen for room updates from server
+    socket.on("roomListUpdate", (updatedRooms) => {
+      setRooms(updatedRooms);
+    });
+
+    // ✅ Request current room list on component mount
+    socket.emit("requestRoomList");
+
+    return () => {
+      socket.off("roomListUpdate");
+    };
+  }, []);
 
   const handleAddRoom = () => {
     const trimmed = room.trim().toLowerCase();
-    if (trimmed && !customRooms.includes(trimmed)) {
-      setCustomRooms((prev) => [...prev, trimmed]);
+    if (trimmed && !rooms.includes(trimmed)) {
+      socket.emit("createRoom", trimmed); // 🔥 Notify server to create room
       setRoom("");
       setActiveRoom(trimmed);
       onSelectRoom(trimmed);
@@ -26,7 +39,7 @@ function RoomList({ onSelectRoom }) {
     <div style={{ marginTop: 20 }}>
       <h4 style={{ marginBottom: 10 }}>💬 Choose a Room</h4>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-        {customRooms.map((r, idx) => (
+        {rooms.map((r, idx) => (
           <button
             key={idx}
             onClick={() => handleRoomSelect(r)}

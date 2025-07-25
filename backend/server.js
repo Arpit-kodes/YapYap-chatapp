@@ -8,7 +8,6 @@ require("dotenv").config();
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -27,51 +26,63 @@ app.use("/api/users", userRoutes);
 // ✅ Models
 const Message = require("./models/Message");
 
-// ✅ Socket.IO Setup
-const io = new Server(server, {
-  cors: {
-    origin: "*", // 🔒 Replace with frontend URL in production
-    methods: ["GET", "POST"],
-  },
-});
+// ✅ In-Memory State
+const users = {}; // socket.id => { username, room }
+const rooms = new Set(["general", "tech", "random"]); // Initial public rooms
 
-// ✅ Active Users: socket.id -> { username, room }
-const users = {};
-
-// ✅ Helper: Get all users in a room
+// ✅ Helper: Get users in room
 const getUsersInRoom = (room) =>
   Object.values(users)
     .filter((user) => user.room === room)
     .map((user) => user.username);
 
-// ✅ Socket.IO Events
+// ✅ Create private room name
+const getPrivateRoom = (u1, u2) => [u1, u2].sort().join("_");
+
+// ✅ Socket.IO Setup
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
 io.on("connection", (socket) => {
   console.log("🟢 New socket connected:", socket.id);
 
-  // 🔄 Join Room
+  socket.emit("roomListUpdate", Array.from(rooms));
+
+  // ✅ Create new public room
+  socket.on("createRoom", (roomName) => {
+    const trimmed = roomName.trim();
+    if (trimmed && !rooms.has(trimmed)) {
+      rooms.add(trimmed);
+      io.emit("roomListUpdate", Array.from(rooms));
+    }
+  });
+
+  // ✅ Join any room (public or private)
   socket.on("joinRoom", async ({ username, room }) => {
     if (!username || !room) return;
 
-    // ✅ Remove socket from previous rooms (except personal)
     for (const r of socket.rooms) {
       if (r !== socket.id) socket.leave(r);
     }
 
-    // ✅ Track and join new room
     socket.join(room);
     users[socket.id] = { username, room };
 
-    // ✅ Notify room
-    socket.to(room).emit("chatMessage", {
-      sender: "System",
-      text: `${username} joined the room`,
-      timestamp: new Date(),
-    });
+    // System join notification (only for public rooms)
+    if (!room.includes("_")) {
+      socket.to(room).emit("chatMessage", {
+        sender: "System",
+        text: `${username} joined the room`,
+        timestamp: new Date(),
+      });
+    }
 
-    // ✅ Update online users
     io.to(room).emit("onlineUsers", getUsersInRoom(room));
 
-    // ✅ Send chat history
     try {
       const history = await Message.find({ room }).sort({ timestamp: 1 }).limit(50);
       socket.emit("chatHistory", history);
@@ -80,43 +91,46 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 💬 Receive message
-  socket.on("chatMessage", async ({ message, room, sender }) => {
+  // ✅ Send chat message (public or private)
+  socket.on("chatMessage", async ({ message, room, sender, to }) => {
     if (!message || !room || !sender) return;
 
     const msg = {
       sender,
       room,
       text: message,
+      to: to || null,
       timestamp: new Date(),
     };
 
     try {
-      await Message.create(msg); // ✅ Save
-      io.to(room).emit("chatMessage", msg); // ✅ Broadcast to room only
+      await Message.create(msg);
+      io.to(room).emit("chatMessage", msg);
     } catch (err) {
       console.error("❌ Message save error:", err.message);
     }
   });
 
-  // ✍️ Typing indicator
+  // ✅ Typing indicator
   socket.on("typing", ({ room, username }) => {
     if (room && username) {
       socket.to(room).emit("typing", username);
     }
   });
 
-  // 🔌 Disconnect
+  // ✅ Disconnect
   socket.on("disconnect", () => {
     const user = users[socket.id];
     if (user) {
       const { room, username } = user;
 
-      socket.to(room).emit("chatMessage", {
-        sender: "System",
-        text: `${username} left the room`,
-        timestamp: new Date(),
-      });
+      if (!room.includes("_")) {
+        socket.to(room).emit("chatMessage", {
+          sender: "System",
+          text: `${username} left the room`,
+          timestamp: new Date(),
+        });
+      }
 
       delete users[socket.id];
       io.to(room).emit("onlineUsers", getUsersInRoom(room));

@@ -3,6 +3,7 @@ import { socket } from "../socket";
 import MessageInput from "./MessageInput";
 import OnlineUsersList from "./OnlineUsersList";
 import TypingIndicator from "./TypingIndicator";
+import DirectChatList from "./DirectChatList"; // 👈 New
 
 function ChatRoom() {
   const [room, setRoom] = useState("");
@@ -10,11 +11,19 @@ function ChatRoom() {
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUser, setTypingUser] = useState(null);
-
+  const [directUser, setDirectUser] = useState(null); // 👈 For private chat
   const chatRef = useRef(null);
 
+  const getPrivateRoom = (u1, u2) => {
+    return [u1, u2].sort().join("_"); // consistent room name
+  };
+
+  // ✅ Load user and join room
   useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem("user"));
+    const storedUser =
+      JSON.parse(sessionStorage.getItem("user")) ||
+      JSON.parse(localStorage.getItem("user"));
+
     if (!storedUser) {
       window.location.href = "/";
       return;
@@ -26,6 +35,7 @@ function ChatRoom() {
     socket.emit("joinRoom", { username, room });
   }, []);
 
+  // ✅ Handle socket events
   useEffect(() => {
     socket.on("chatMessage", (message) => {
       setMessages((prev) => [...prev, message]);
@@ -52,8 +62,8 @@ function ChatRoom() {
     };
   }, []);
 
+  // ✅ Scroll to bottom on new message
   useEffect(() => {
-    // Scroll to bottom on new message
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
@@ -61,17 +71,81 @@ function ChatRoom() {
 
   const handleSendMessage = (message) => {
     if (!message.trim()) return;
-    socket.emit("chatMessage", { message, room, sender: username });
+
+    const targetRoom = directUser ? getPrivateRoom(username, directUser) : room;
+    socket.emit("chatMessage", {
+      message,
+      room: targetRoom,
+      sender: username,
+      to: directUser || null,
+    });
   };
 
   const handleTyping = () => {
-    socket.emit("typing", { room, username });
+    const targetRoom = directUser ? getPrivateRoom(username, directUser) : room;
+    socket.emit("typing", { room: targetRoom, username });
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("user");
+    localStorage.removeItem("user");
+    window.location.href = "/";
+  };
+
+  const handleDirectUser = (user) => {
+    setDirectUser(user);
+    const privateRoom = getPrivateRoom(username, user);
+    setRoom(privateRoom); // update UI label
+    socket.emit("joinRoom", { username, room: privateRoom });
+    setMessages([]); // clear old public messages
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2 style={{ color: "#f0f4f8" }}>Room: {room}</h2>
+    <div style={{ padding: 20, maxWidth: 700, margin: "auto" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 10,
+        }}
+      >
+        <div>
+          <h2 style={{ color: "#28266A", marginBottom: 5 }}>
+            {directUser ? `💌 Chat with: ${directUser}` : `Room: ${room}`}
+          </h2>
+          <p
+            style={{
+              fontSize: 14,
+              color: onlineUsers.length === 1 ? "#00b894" : "#ccc",
+            }}
+          >
+            👥 {onlineUsers.length} user{onlineUsers.length !== 1 ? "s" : ""} online
+          </p>
+        </div>
+
+        <button
+          onClick={handleLogout}
+          style={{
+            backgroundColor: "#d9534f",
+            color: "#fff",
+            border: "none",
+            padding: "8px 16px",
+            borderRadius: "5px",
+            cursor: "pointer",
+          }}
+        >
+          Logout
+        </button>
+      </div>
+
       <OnlineUsersList users={onlineUsers} />
+      <DirectChatList
+        users={onlineUsers}
+        currentUser={username}
+        onSelectUser={handleDirectUser}
+      />
+
       <div
         ref={chatRef}
         style={{
@@ -81,10 +155,11 @@ function ChatRoom() {
           padding: "10px",
           borderRadius: "8px",
           marginTop: "10px",
+          color: "#f0f4f8",
         }}
       >
         {messages.map((msg, i) => (
-          <div key={i} style={{ marginBottom: "8px", color: "#f0f4f8" }}>
+          <div key={i} style={{ marginBottom: "8px" }}>
             <strong>{msg.sender}</strong>: {msg.text}
           </div>
         ))}
@@ -92,10 +167,7 @@ function ChatRoom() {
 
       {typingUser && <TypingIndicator typingUser={typingUser} />}
 
-      <MessageInput
-        onSendMessage={handleSendMessage}
-        onTyping={handleTyping}
-      />
+      <MessageInput onSendMessage={handleSendMessage} onTyping={handleTyping} />
     </div>
   );
 }

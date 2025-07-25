@@ -8,6 +8,7 @@ require("dotenv").config();
 const app = express();
 const server = http.createServer(app);
 
+// ✅ Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -30,49 +31,53 @@ const Message = require("./models/Message");
 const users = {}; // socket.id => { username, room }
 const rooms = new Set(["general", "tech", "random"]); // Initial public rooms
 
-// ✅ Helper: Get users in room
+// ✅ Utility: Get all users in a room
 const getUsersInRoom = (room) =>
   Object.values(users)
     .filter((user) => user.room === room)
     .map((user) => user.username);
 
-// ✅ Create private room name
+// ✅ Utility: Create private room name
 const getPrivateRoom = (u1, u2) => [u1, u2].sort().join("_");
 
 // ✅ Socket.IO Setup
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*", // Update to frontend domain in production
     methods: ["GET", "POST"],
   },
 });
 
+// ✅ Socket.IO Events
 io.on("connection", (socket) => {
   console.log("🟢 New socket connected:", socket.id);
 
+  // Initial room list
   socket.emit("roomListUpdate", Array.from(rooms));
 
-  // ✅ Create new public room
+  // Create public room
   socket.on("createRoom", (roomName) => {
     const trimmed = roomName.trim();
     if (trimmed && !rooms.has(trimmed)) {
       rooms.add(trimmed);
-      io.emit("roomListUpdate", Array.from(rooms));
+      io.emit("roomListUpdate", Array.from(rooms)); // Broadcast to all
     }
   });
 
-  // ✅ Join any room (public or private)
+  // Join a room (public or private)
   socket.on("joinRoom", async ({ username, room }) => {
     if (!username || !room) return;
 
+    // Leave all previous rooms
     for (const r of socket.rooms) {
       if (r !== socket.id) socket.leave(r);
     }
 
+    // Join new room and track user
     socket.join(room);
     users[socket.id] = { username, room };
 
-    // System join notification (only for public rooms)
+    // Send system join message only in public rooms
     if (!room.includes("_")) {
       socket.to(room).emit("chatMessage", {
         sender: "System",
@@ -83,6 +88,7 @@ io.on("connection", (socket) => {
 
     io.to(room).emit("onlineUsers", getUsersInRoom(room));
 
+    // Send chat history
     try {
       const history = await Message.find({ room }).sort({ timestamp: 1 }).limit(50);
       socket.emit("chatHistory", history);
@@ -91,7 +97,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ Send chat message (public or private)
+  // Handle chat messages
   socket.on("chatMessage", async ({ message, room, sender, to }) => {
     if (!message || !room || !sender) return;
 
@@ -111,14 +117,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ Typing indicator
+  // Typing indicator
   socket.on("typing", ({ room, username }) => {
     if (room && username) {
       socket.to(room).emit("typing", username);
     }
   });
 
-  // ✅ Disconnect
+  // Disconnect handling
   socket.on("disconnect", () => {
     const user = users[socket.id];
     if (user) {
@@ -140,8 +146,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ Start Server
-const PORT = process.env.PORT || 5000;
+// ✅ Deploy fix: Use only process.env.PORT
+const PORT = process.env.PORT;
 server.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  console.log(`🚀 Server is running on Render at port ${PORT}`);
 });

@@ -1,15 +1,8 @@
+// vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    proxy: {
-      '/socket.io': {
-        target: 'http://localhost:5000',
-        ws: true,              // enable websocket proxying
-        changeOrigin: true,
-      },
-    },
-  },
+  //  Remove the server.proxy section — it's not used in production
 })

@@ -43,7 +43,7 @@ const getPrivateRoom = (u1, u2) => [u1, u2].sort().join("_");
 // ✅ Socket.IO Setup
 const io = new Server(server, {
   cors: {
-    origin: "*", // Update to frontend domain in production
+    origin: "*", // Update with frontend domain in production
     methods: ["GET", "POST"],
   },
 });
@@ -52,32 +52,27 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
   console.log("🟢 New socket connected:", socket.id);
 
-  // Initial room list
   socket.emit("roomListUpdate", Array.from(rooms));
 
-  // Create public room
   socket.on("createRoom", (roomName) => {
     const trimmed = roomName.trim();
     if (trimmed && !rooms.has(trimmed)) {
       rooms.add(trimmed);
-      io.emit("roomListUpdate", Array.from(rooms)); // Broadcast to all
+      io.emit("roomListUpdate", Array.from(rooms));
     }
   });
 
-  // Join a room (public or private)
   socket.on("joinRoom", async ({ username, room }) => {
     if (!username || !room) return;
 
-    // Leave all previous rooms
+    // Leave existing rooms
     for (const r of socket.rooms) {
       if (r !== socket.id) socket.leave(r);
     }
 
-    // Join new room and track user
     socket.join(room);
     users[socket.id] = { username, room };
 
-    // Send system join message only in public rooms
     if (!room.includes("_")) {
       socket.to(room).emit("chatMessage", {
         sender: "System",
@@ -88,7 +83,6 @@ io.on("connection", (socket) => {
 
     io.to(room).emit("onlineUsers", getUsersInRoom(room));
 
-    // Send chat history
     try {
       const history = await Message.find({ room }).sort({ timestamp: 1 }).limit(50);
       socket.emit("chatHistory", history);
@@ -97,7 +91,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Handle chat messages
   socket.on("chatMessage", async ({ message, room, sender, to }) => {
     if (!message || !room || !sender) return;
 
@@ -117,14 +110,12 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Typing indicator
   socket.on("typing", ({ room, username }) => {
     if (room && username) {
       socket.to(room).emit("typing", username);
     }
   });
 
-  // Disconnect handling
   socket.on("disconnect", () => {
     const user = users[socket.id];
     if (user) {
@@ -146,8 +137,13 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ Deploy fix: Use only process.env.PORT
-const PORT = process.env.PORT;
+// ✅ Root route to avoid 404 on home
+app.get("/", (req, res) => {
+  res.send("✅ YapYap backend is running!");
+});
+
+// ✅ Fallback PORT for local + render
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server is running on Render at port ${PORT}`);
-});  
+  console.log(`🚀 Server is running on port ${PORT}`);
+});

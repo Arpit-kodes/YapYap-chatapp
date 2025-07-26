@@ -8,39 +8,39 @@ require("dotenv").config();
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Middleware
+//  Middleware
 app.use(cors());
 app.use(express.json());
 
-// ✅ MongoDB Connection
+//  MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err.message));
 
-// ✅ Routes
+//  Routes
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 
-// ✅ Models
+//  Models
 const Message = require("./models/Message");
 
-// ✅ In-Memory State
+//  In-Memory State
 const users = {}; // socket.id => { username, room }
 const rooms = new Set(["general", "tech", "random"]); // Initial public rooms
 
-// ✅ Utility: Get all users in a room
+//  Utility: Get all users in a room
 const getUsersInRoom = (room) =>
   Object.values(users)
     .filter((user) => user.room === room)
     .map((user) => user.username);
 
-// ✅ Utility: Create private room name
+//  Utility: Create private room name
 const getPrivateRoom = (u1, u2) => [u1, u2].sort().join("_");
 
-// ✅ Socket.IO Setup
+//  Socket.IO Setup
 const io = new Server(server, {
   cors: {
     origin: "*", // Update with frontend domain in production
@@ -48,7 +48,7 @@ const io = new Server(server, {
   },
 });
 
-// ✅ Socket.IO Events
+//  Socket.IO Events
 io.on("connection", (socket) => {
   console.log("🟢 New socket connected:", socket.id);
 
@@ -137,13 +137,13 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ Root route to avoid 404 on home
+//  Root route to avoid 404 on home
 app.get("/", (req, res) => {
-  res.send("✅ YapYap backend is running!");
+  res.send(" YapYap backend is running!");
 });
 
-// ✅ Fallback PORT for local + render
+//  Fallback PORT for local + render
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(` Server is running on port ${PORT}`);
 });

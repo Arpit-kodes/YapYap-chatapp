@@ -7,12 +7,12 @@ function RoomList({ onSelectRoom }) {
   const [activeRoom, setActiveRoom] = useState("");
 
   useEffect(() => {
-    // 🔁 Listen for room updates from server
+    //  Listen for room updates from server
     socket.on("roomListUpdate", (updatedRooms) => {
       setRooms(updatedRooms);
     });
 
-    // ✅ Request current room list on component mount
+    //  Request current room list on component mount
     socket.emit("requestRoomList");
 
     return () => {
@@ -23,7 +23,7 @@ function RoomList({ onSelectRoom }) {
   const handleAddRoom = () => {
     const trimmed = room.trim().toLowerCase();
     if (trimmed && !rooms.includes(trimmed)) {
-      socket.emit("createRoom", trimmed); // 🔥 Notify server to create room
+      socket.emit("createRoom", trimmed); //  Notify server to create room
       setRoom("");
       setActiveRoom(trimmed);
       onSelectRoom(trimmed);
